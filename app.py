@@ -73,7 +73,8 @@ else:
             df_ex['Set #'] = df_ex.groupby(['Day', 'Exercise']).cumcount() + 1
             df_display = df_ex[['Set #', 'Reps', 'Weight(kg)', 'multiplier',
                                 'Actual Weight (kg)', 'Volume (kg)', 'PR']]
-            with st.expander(f"💪 {exercise}", expanded=True):
+            with st.expander(f"{exercise}", expanded=True):
+                st.markdown(f"### 💪 {exercise}")
                 st.dataframe(df_display, use_container_width=True)
 
     elif view_mode == "By Exercise":
@@ -82,5 +83,6 @@ else:
             df_day['Set #'] = df_day.groupby(['Day', 'Exercise']).cumcount() + 1
             df_display = df_day[['Set #', 'Reps', 'Weight(kg)', 'multiplier',
                                  'Actual Weight (kg)', 'Volume (kg)', 'PR']]
-            with st.expander(f"📅 {day}", expanded=True):
+            with st.expander(f"{day}", expanded=True):
+                st.markdown(f"### 📅 {day}")
                 st.dataframe(df_display, use_container_width=True)
