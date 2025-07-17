@@ -1,10 +1,10 @@
 import pandas as pd
 import streamlit as st
 
-# Set up clean layout
+# Set page and style
 st.set_page_config(page_title="Workout Dashboard", layout="wide")
 
-# Basic style enhancements
+# Optional light CSS styling
 st.markdown("""
     <style>
     .stDataFrame {border: 1px solid #eee; border-radius: 10px;}
@@ -13,69 +13,74 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🏋️ Workout Dashboard")
+st.markdown("Track your sets, volume, and personal bests 🏅. View by day or by exercise.")
 
-# Load CSV
+# Load CSV from GitHub
 csv_url = "https://raw.githubusercontent.com/datojulien/workout-dashboard/main/WorkoutExport.csv"
 df = pd.read_csv(csv_url)
 df['Date'] = pd.to_datetime(df['Date'])
 df['Day'] = df['Date'].dt.date
 
-# Filter out cardio
+# Filter out cardio (e.g. Stair Stepper)
 df = df[~df['Exercise'].str.contains("Stair Stepper", case=False, na=False)]
 
-# Calculated columns
+# Add computed columns
 df['Actual Weight (kg)'] = df['Weight(kg)'] * df['multiplier']
 df['Volume (kg)'] = df['Actual Weight (kg)'] * df['Reps']
 
-# Mark PRs
+# Highlight PR sets
 exercise_prs = df.groupby('Exercise')['Actual Weight (kg)'].max().to_dict()
 df['PR'] = df.apply(lambda row: "🏅" if row['Actual Weight (kg)'] == exercise_prs[row['Exercise']] else "", axis=1)
 
-# Header metrics
-total_volume = df['Volume (kg)'].sum()
-total_sets = len(df)
-top_lift = df['Actual Weight (kg)'].max()
+# Sidebar filters
+st.sidebar.title("Filters")
+view_mode = st.sidebar.radio("📊 View Mode", ["By Date", "By Exercise"])
 
-st.markdown("### 📊 Summary")
+if view_mode == "By Date":
+    # View by workout day
+    unique_days = sorted(df['Day'].unique(), reverse=True)
+    selected_day = st.sidebar.selectbox("📅 Select a date", unique_days)
+
+    df_view = df[df['Day'] == selected_day]
+    summary_title = f"📊 Summary for {selected_day}"
+
+elif view_mode == "By Exercise":
+    # View all days for selected exercise
+    all_exercises = sorted(df['Exercise'].unique())
+    selected_exercise = st.sidebar.selectbox("💪 Select an exercise", all_exercises)
+
+    df_view = df[df['Exercise'] == selected_exercise]
+    summary_title = f"📊 Summary for {selected_exercise}"
+
+# ⬇️ Summary Header (Contextual)
+total_volume = df_view['Volume (kg)'].sum()
+total_sets = len(df_view)
+top_lift = df_view['Actual Weight (kg)'].max()
+
+st.markdown(f"### {summary_title}")
 cols = st.columns(3)
 cols[0].metric("Total Volume", f"{total_volume:,.0f} kg")
 cols[1].metric("Total Sets", f"{total_sets}")
 cols[2].metric("Heaviest Lift", f"{top_lift:.1f} kg")
 
-# View mode
-st.sidebar.title("Filters")
-view_mode = st.sidebar.radio("📊 View Mode", ["By Date", "By Exercise"])
-
-if view_mode == "By Date":
-    unique_days = sorted(df['Day'].unique(), reverse=True)
-    selected_day = st.sidebar.selectbox("📅 Select a date", unique_days)
-    df_day = df[df['Day'] == selected_day]
-
-    st.markdown(f"### 🗓 Workout on {selected_day}")
-    if df_day.empty:
-        st.info("No workout data on this date.")
-    else:
-        for exercise in df_day['Exercise'].unique():
-            df_ex = df_day[df_day['Exercise'] == exercise].reset_index(drop=True)
+# ⬇️ Show tables
+if df_view.empty:
+    st.info("No workout data found.")
+else:
+    if view_mode == "By Date":
+        for exercise in df_view['Exercise'].unique():
+            df_ex = df_view[df_view['Exercise'] == exercise].reset_index(drop=True)
             df_ex['Set #'] = df_ex.groupby(['Day', 'Exercise']).cumcount() + 1
             df_display = df_ex[['Set #', 'Reps', 'Weight(kg)', 'multiplier',
                                 'Actual Weight (kg)', 'Volume (kg)', 'PR']]
             with st.expander(f"💪 {exercise}", expanded=True):
                 st.dataframe(df_display, use_container_width=True)
 
-elif view_mode == "By Exercise":
-    all_exercises = sorted(df['Exercise'].unique())
-    selected_exercise = st.sidebar.selectbox("💪 Select an exercise", all_exercises)
-    df_ex = df[df['Exercise'] == selected_exercise]
-
-    st.markdown(f"### 🔎 All Sets for {selected_exercise}")
-    if df_ex.empty:
-        st.info("No data for this exercise.")
-    else:
-        for day in sorted(df_ex['Day'].unique(), reverse=True):
-            df_day = df_ex[df_ex['Day'] == day].reset_index(drop=True)
+    elif view_mode == "By Exercise":
+        for day in sorted(df_view['Day'].unique(), reverse=True):
+            df_day = df_view[df_view['Day'] == day].reset_index(drop=True)
             df_day['Set #'] = df_day.groupby(['Day', 'Exercise']).cumcount() + 1
             df_display = df_day[['Set #', 'Reps', 'Weight(kg)', 'multiplier',
                                  'Actual Weight (kg)', 'Volume (kg)', 'PR']]
-            with st.expander(f"📅 {day}", expanded=False):
+            with st.expander(f"📅 {day}", expanded=True):
                 st.dataframe(df_display, use_container_width=True)
