@@ -1,25 +1,25 @@
-
 import pandas as pd
 import streamlit as st
 import altair as alt
 
 # ---------- Streamlit page & style ---------- #
-st.set_page_config(page_title="Workout Dashboard", layout="wide")
+st.set_page_config(page_title="Julien's Workout Dashboard", layout="wide")
 st.markdown(
     """
     <style>
       .stDataFrame {border:1px solid #eee;border-radius:10px;}
       .block-container {padding-top:1rem;}
+      h3 {font-size: 1.4rem; font-weight: bold;}
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-st.title("🏋️ Workout Dashboard")
+st.title("🏋️ Julien's Workout Dashboard")
 st.markdown(
     "Tracking Julien's sets, volume, and personal bests 🏅. "
     "View by day or by exercise. Volume trends include the selected day. "
-    "Hopefully Coach Azim won't be ashamed by my performances."
+    "Tracking my progress so Coach Azim has fewer reasons to be disappointed."
 )
 
 # ---------- Load data ---------- #
@@ -52,18 +52,12 @@ df["PR"] = df.apply(assign_pr, axis=1)
 # ---------- Push / Pull / Lower classifier ---------- #
 def classify_exercise(name: str) -> str:
     n = name.lower()
-    lower_kw = [
-        "squat", "deadlift", "lunge", "leg", "hamstring", "calf", 
-        "hip thrust", "thrust", "glute", "rdl", "good morning"
-    ]
-    push_kw = [
-        "bench", "overhead press", "shoulder press", "incline", 
-        "dip", "dips", "push", "tricep"
-    ]
-    pull_kw = [
-        "row", "pulldown", "pull-up", "curl", "face pull", 
-        "shrug", "chin"
-    ]
+    lower_kw = ["squat", "deadlift", "lunge", "leg", "hamstring", "calf", 
+                "hip thrust", "thrust", "glute", "rdl", "good morning"]
+    push_kw = ["bench", "overhead press", "shoulder press", "incline", 
+               "dip", "dips", "push", "tricep"]
+    pull_kw = ["row", "pulldown", "pull-up", "curl", "face pull", 
+               "shrug", "chin"]
     if any(k in n for k in lower_kw): return "Lower"
     if any(k in n for k in push_kw): return "Push"
     if any(k in n for k in pull_kw): return "Pull"
@@ -111,13 +105,11 @@ else:
         for ex in df_view["Exercise"].unique():
             df_ex = df_view[df_view["Exercise"] == ex].copy()
             df_ex["Set #"] = df_ex.groupby(["Day", "Exercise"]).cumcount() + 1
-            show_cols = [
-                "Set #", "Reps", "Weight(kg)", "multiplier",
-                "Actual Weight (kg)", "Volume (kg)", "PR"
-            ]
-            with st.expander(ex, expanded=True):
-                st.markdown(f"### 💪 {ex}")
+            show_cols = ["Set #", "Reps", "Weight(kg)", "multiplier", 
+                         "Actual Weight (kg)", "Volume (kg)", "PR"]
+            with st.expander(f"💪 {ex}", expanded=True):
                 st.dataframe(df_ex[show_cols], use_container_width=True)
+
                 recent_days = (
                     df[df["Exercise"] == ex]["Day"]
                     .drop_duplicates()
@@ -138,17 +130,16 @@ else:
                         .properties(height=200)
                     )
                     st.altair_chart(chart, use_container_width=True)
-    else:
+
+    else:  # View by Exercise
         for d in sorted(df_view["Day"].unique(), reverse=True):
             df_day = df_view[df_view["Day"] == d].copy()
             df_day["Set #"] = df_day.groupby(["Day", "Exercise"]).cumcount() + 1
-            show_cols = [
-                "Set #", "Reps", "Weight(kg)", "multiplier",
-                "Actual Weight (kg)", "Volume (kg)", "PR"
-            ]
-            with st.expander(str(d), expanded=True):
-                st.markdown(f"### 📅 {d}")
+            show_cols = ["Set #", "Reps", "Weight(kg)", "multiplier", 
+                         "Actual Weight (kg)", "Volume (kg)", "PR"]
+            with st.expander(f"📅 {d}", expanded=True):
                 st.dataframe(df_day[show_cols], use_container_width=True)
+
         recent_days = (
             df[df["Exercise"] == selected_ex]["Day"]
             .drop_duplicates()
