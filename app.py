@@ -2,7 +2,7 @@ import pandas as pd
 import streamlit as st
 
 # Set page and style
-st.set_page_config(page_title="Workout Dashboard", layout="wide")
+st.set_page_config(page_title="Julien's Workout Dashboard", layout="wide")
 
 # Optional light CSS styling
 st.markdown("""
@@ -12,8 +12,8 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🏋️ Workout Dashboard")
-st.markdown("Track your sets, volume, and personal bests 🏅. View by day or by exercise.")
+st.title("🏋️ Julien's Workout Dashboard")
+st.markdown("Tracking Julien's sets, volume, and personal bests 🏅. View by day or by exercise.")
 
 # Load CSV from GitHub
 csv_url = "https://raw.githubusercontent.com/datojulien/workout-dashboard/main/WorkoutExport.csv"
