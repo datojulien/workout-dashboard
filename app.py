@@ -62,7 +62,7 @@ def classify_exercise(name: str) -> str:
     push_kw  = ["bench", "overhead press", "shoulder press", "incline",
                 "dip", "dips", "push", "tricep"]
     pull_kw  = ["row", "pulldown", "pull-up", "curl", "face pull", "shrug", "chin"]
-    if any(k in n for k in lower_kw): return "Lower"
+    if any(k in n for k in lower_kw): return "Lower Body"
     if any(k in n for k in push_kw):  return "Push"
     if any(k in n for k in pull_kw):  return "Pull"
     return "Other"
@@ -149,8 +149,12 @@ else:
             df_ex["Set #"] = df_ex.groupby(["Day", "Exercise"]).cumcount() + 1
             show_cols = ["Set #", "Reps", "Weight(kg)", "multiplier",
                          "Actual Weight (kg)", "Volume (kg)", "PR"]
-            with st.expander(f"💪 {ex}", expanded=True):
-                st.dataframe(df_ex[show_cols], use_container_width=True)
+with st.expander(f"💪 {ex}", expanded=True):
+    # Put a Markdown header here, wrapped in ** to bold it
+    st.markdown(f"### **💪 {ex}**")
+    st.dataframe(df_ex[show_cols], use_container_width=True)
+    …
+
 
                 # mini trend
                 recent_days = (
