@@ -4,16 +4,13 @@ import altair as alt
 
 # ---------- Streamlit page & style ---------- #
 st.set_page_config(page_title="Julien's Workout Dashboard", layout="wide")
-st.markdown(
-    """
+st.markdown("""
     <style>
       .stDataFrame {border:1px solid #eee;border-radius:10px;}
       .block-container {padding-top:1rem;}
       h3 {font-size: 1.4rem; font-weight: bold;}
     </style>
-    """,
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
 st.title("🏋️ Julien's Workout Dashboard")
 st.markdown(
@@ -23,9 +20,7 @@ st.markdown(
 )
 
 # ---------- Load data ---------- #
-CSV_URL = (
-    "https://raw.githubusercontent.com/datojulien/workout-dashboard/main/WorkoutExport.csv"
-)
+CSV_URL = "https://raw.githubusercontent.com/datojulien/workout-dashboard/main/WorkoutExport.csv"
 df = pd.read_csv(CSV_URL)
 df["Date"] = pd.to_datetime(df["Date"])
 df["Day"] = df["Date"].dt.date
@@ -37,9 +32,19 @@ df = df[~df["Exercise"].str.contains("Stair Stepper|Cycling", case=False, na=Fal
 df["Actual Weight (kg)"] = df["Weight(kg)"] * df["multiplier"]
 df["Volume (kg)"] = df["Actual Weight (kg)"] * df["Reps"]
 
-# ---------- PR Detection ----------
-prs_weight = df[df["Actual Weight (kg)"] > 0].groupby("Exercise")["Actual Weight (kg)"].max().to_dict()
-prs_reps = df[df["Actual Weight (kg)"] == 0].groupby("Exercise")["Reps"].max().to_dict()
+# ---------- PR Detection ---------- #
+prs_weight = (
+    df[df["Actual Weight (kg)"] > 0]
+    .groupby("Exercise")["Actual Weight (kg)"]
+    .max()
+    .to_dict()
+)
+prs_reps = (
+    df[df["Actual Weight (kg)"] == 0]
+    .groupby("Exercise")["Reps"]
+    .max()
+    .to_dict()
+)
 
 def assign_pr(row):
     if row["Actual Weight (kg)"] == 0:
@@ -54,34 +59,52 @@ def classify_exercise(name: str) -> str:
     n = name.lower()
     lower_kw = ["squat", "deadlift", "lunge", "leg", "hamstring", "calf", 
                 "hip thrust", "thrust", "glute", "rdl", "good morning"]
-    push_kw = ["bench", "overhead press", "shoulder press", "incline", 
-               "dip", "dips", "push", "tricep"]
-    pull_kw = ["row", "pulldown", "pull-up", "curl", "face pull", 
-               "shrug", "chin"]
+    push_kw  = ["bench", "overhead press", "shoulder press", "incline", 
+                "dip", "dips", "push", "tricep"]
+    pull_kw  = ["row", "pulldown", "pull-up", "curl", "face pull", "shrug", "chin"]
     if any(k in n for k in lower_kw): return "Lower"
-    if any(k in n for k in push_kw): return "Push"
-    if any(k in n for k in pull_kw): return "Pull"
+    if any(k in n for k in push_kw):  return "Push"
+    if any(k in n for k in pull_kw):  return "Pull"
     return "Other"
 
 df["Workout Type"] = df["Exercise"].apply(classify_exercise)
 
+# ---------- Weekly summary calculation ---------- #
+df["Week"] = df["Date"].dt.isocalendar().week
+weekly_summary = (
+    df.groupby("Week", as_index=False)
+      .agg({
+          "Volume (kg)": "sum",
+          "Actual Weight (kg)": "max",
+          "Reps": "sum",
+          "Exercise": "nunique"
+      })
+      .rename(columns={
+          "Volume (kg)": "Total Volume",
+          "Actual Weight (kg)": "Heaviest Lift",
+          "Reps": "Total Reps",
+          "Exercise": "Unique Exercises"
+      })
+      .sort_values("Week", ascending=False)
+)
+
 # ---------- Sidebar controls ---------- #
 st.sidebar.title("Filters")
-view_mode = st.sidebar.radio("📊 View Mode", ("By Date", "By Exercise"))
-hide_light = st.sidebar.checkbox("💪 Azim View™ – Hide light sets (< 40 kg)")
+view_mode   = st.sidebar.radio("📊 View Mode", ("By Date", "By Exercise"))
+hide_light  = st.sidebar.checkbox("💪 Azim View™ – Hide light sets (< 40 kg)")
 
 if view_mode == "By Date":
-    all_days = sorted(df["Day"].unique(), reverse=True)
+    all_days    = sorted(df["Day"].unique(), reverse=True)
     selected_day = st.sidebar.selectbox("📅 Select a date", all_days)
-    df_view = df[df["Day"] == selected_day]
+    df_view     = df[df["Day"] == selected_day]
     if hide_light:
         df_view = df_view[df_view["Actual Weight (kg)"] >= 40]
-    day_type = df_view["Workout Type"].value_counts().idxmax() if not df_view.empty else "N/A"
+    day_type    = df_view["Workout Type"].value_counts().idxmax() if not df_view.empty else "N/A"
     summary_title = f"📊 Summary for {selected_day} &nbsp;|&nbsp; **{day_type} Day**"
 else:
-    all_ex = sorted(df["Exercise"].unique())
-    selected_ex = st.sidebar.selectbox("💪 Select an exercise", all_ex)
-    df_view = df[df["Exercise"] == selected_ex]
+    all_ex       = sorted(df["Exercise"].unique())
+    selected_ex  = st.sidebar.selectbox("💪 Select an exercise", all_ex)
+    df_view      = df[df["Exercise"] == selected_ex]
     if hide_light:
         df_view = df_view[df_view["Actual Weight (kg)"] >= 40]
     summary_title = f"📊 Summary for {selected_ex}"
@@ -89,13 +112,24 @@ else:
 # ---------- Summary metrics ---------- #
 total_vol = df_view["Volume (kg)"].sum()
 total_sets = len(df_view)
-heaviest = df_view["Actual Weight (kg)"].max()
+heaviest   = df_view["Actual Weight (kg)"].max()
 
 st.markdown(f"### {summary_title}", unsafe_allow_html=True)
 c1, c2, c3 = st.columns(3)
 c1.metric("Total Volume", f"{total_vol:,.0f} kg")
 c2.metric("Total Sets", total_sets)
 c3.metric("Heaviest Lift", f"{heaviest:.1f} kg" if pd.notna(heaviest) else "—")
+
+# ---------- Weekly summary expander ---------- #
+with st.expander("📆 Weekly Summary (last 4 weeks)", expanded=False):
+    st.dataframe(weekly_summary.head(4), use_container_width=True)
+    csv_weekly = weekly_summary.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        label="📥 Download Weekly Summary CSV",
+        data=csv_weekly,
+        file_name="weekly_summary.csv",
+        mime="text/csv"
+    )
 
 # ---------- Display tables & mini charts ---------- #
 if df_view.empty:
@@ -109,7 +143,14 @@ else:
                          "Actual Weight (kg)", "Volume (kg)", "PR"]
             with st.expander(f"💪 {ex}", expanded=True):
                 st.dataframe(df_ex[show_cols], use_container_width=True)
-
+                csv = df_ex[show_cols].to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    label="📥 Download Table as CSV",
+                    data=csv,
+                    file_name=f"{ex.replace(' ', '_')}_{selected_day}.csv",
+                    mime="text/csv"
+                )
+                # Volume trend (last 5 sessions including selected day)
                 recent_days = (
                     df[df["Exercise"] == ex]["Day"]
                     .drop_duplicates()
@@ -139,7 +180,14 @@ else:
                          "Actual Weight (kg)", "Volume (kg)", "PR"]
             with st.expander(f"📅 {d}", expanded=True):
                 st.dataframe(df_day[show_cols], use_container_width=True)
-
+                csv = df_day[show_cols].to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    label="📥 Download Table as CSV",
+                    data=csv,
+                    file_name=f"{selected_ex.replace(' ', '_')}_{d}.csv",
+                    mime="text/csv"
+                )
+        # Trend for exercise (last 5 sessions)
         recent_days = (
             df[df["Exercise"] == selected_ex]["Day"]
             .drop_duplicates()
