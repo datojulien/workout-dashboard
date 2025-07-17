@@ -84,13 +84,3 @@ Example row:
 ## 📄 License
 
 MIT License © [Julien](https://github.com/datojulien)
-
-```
-
----
-
-Let me know if you want:
-- A French version of the README
-- Screenshot or preview image guidance
-- Instructions to enable the mobile layout feature in the future
-```
