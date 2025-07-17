@@ -1,9 +1,10 @@
+
 import pandas as pd
 import streamlit as st
 import altair as alt
 
 # ---------- Streamlit page & style ---------- #
-st.set_page_config(page_title="Julien's Workout Dashboard", layout="wide")
+st.set_page_config(page_title="Workout Dashboard", layout="wide")
 st.markdown(
     """
     <style>
@@ -14,7 +15,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("🏋️ Julien's Workout Dashboard")
+st.title("🏋️ Workout Dashboard")
 st.markdown(
     "Tracking Julien's sets, volume, and personal bests 🏅. "
     "View by day or by exercise. Volume trends include the selected day. "
@@ -36,50 +37,37 @@ df = df[~df["Exercise"].str.contains("Stair Stepper|Cycling", case=False, na=Fal
 df["Actual Weight (kg)"] = df["Weight(kg)"] * df["multiplier"]
 df["Volume (kg)"] = df["Actual Weight (kg)"] * df["Reps"]
 
-# Personal-record (PR) flag
-prs = df.groupby("Exercise")["Actual Weight (kg)"].max().to_dict()
-df["PR"] = df.apply(
-    lambda r: "🏅" if r["Actual Weight (kg)"] == prs[r["Exercise"]] else "", axis=1
-)
+# ---------- PR Detection ----------
+prs_weight = df[df["Actual Weight (kg)"] > 0].groupby("Exercise")["Actual Weight (kg)"].max().to_dict()
+prs_reps = df[df["Actual Weight (kg)"] == 0].groupby("Exercise")["Reps"].max().to_dict()
+
+def assign_pr(row):
+    if row["Actual Weight (kg)"] == 0:
+        return "🏅" if row["Reps"] == prs_reps.get(row["Exercise"], -1) else ""
+    else:
+        return "🏅" if row["Actual Weight (kg)"] == prs_weight.get(row["Exercise"], -1) else ""
+
+df["PR"] = df.apply(assign_pr, axis=1)
 
 # ---------- Push / Pull / Lower classifier ---------- #
 def classify_exercise(name: str) -> str:
-    """Return Push / Pull / Lower / Other based on keywords."""
     n = name.lower()
-
     lower_kw = [
-        "squat",
-        "deadlift",
-        "lunge",
-        "leg",
-        "hamstring",
-        "calf",
-        "hip thrust",
-        "thrust",
-        "glute",
-        "rdl",
-        "good morning",
+        "squat", "deadlift", "lunge", "leg", "hamstring", "calf", 
+        "hip thrust", "thrust", "glute", "rdl", "good morning"
     ]
     push_kw = [
-        "bench",
-        "overhead press",
-        "shoulder press",
-        "incline",
-        "dip",
-        "dips",
-        "push",
-        "tricep",
+        "bench", "overhead press", "shoulder press", "incline", 
+        "dip", "dips", "push", "tricep"
     ]
-    pull_kw = ["row", "pulldown", "pull-up", "curl", "face pull", "shrug", "chin"]
-
-    if any(k in n for k in lower_kw):
-        return "Lower Body"
-    if any(k in n for k in push_kw):
-        return "Push"
-    if any(k in n for k in pull_kw):
-        return "Pull"
+    pull_kw = [
+        "row", "pulldown", "pull-up", "curl", "face pull", 
+        "shrug", "chin"
+    ]
+    if any(k in n for k in lower_kw): return "Lower"
+    if any(k in n for k in push_kw): return "Push"
+    if any(k in n for k in pull_kw): return "Pull"
     return "Other"
-
 
 df["Workout Type"] = df["Exercise"].apply(classify_exercise)
 
@@ -91,27 +79,17 @@ hide_light = st.sidebar.checkbox("💪 Azim View™ – Hide light sets (< 40 kg
 if view_mode == "By Date":
     all_days = sorted(df["Day"].unique(), reverse=True)
     selected_day = st.sidebar.selectbox("📅 Select a date", all_days)
-
     df_view = df[df["Day"] == selected_day]
     if hide_light:
         df_view = df_view[df_view["Actual Weight (kg)"] >= 40]
-
-    # --- Auto-detect workout day type --- #
-    day_type = (
-        df_view["Workout Type"].value_counts().idxmax()
-        if not df_view.empty
-        else "N/A"
-    )
+    day_type = df_view["Workout Type"].value_counts().idxmax() if not df_view.empty else "N/A"
     summary_title = f"📊 Summary for {selected_day} &nbsp;|&nbsp; **{day_type} Day**"
-
-else:  # By Exercise
+else:
     all_ex = sorted(df["Exercise"].unique())
     selected_ex = st.sidebar.selectbox("💪 Select an exercise", all_ex)
-
     df_view = df[df["Exercise"] == selected_ex]
     if hide_light:
         df_view = df_view[df_view["Actual Weight (kg)"] >= 40]
-
     summary_title = f"📊 Summary for {selected_ex}"
 
 # ---------- Summary metrics ---------- #
@@ -134,19 +112,12 @@ else:
             df_ex = df_view[df_view["Exercise"] == ex].copy()
             df_ex["Set #"] = df_ex.groupby(["Day", "Exercise"]).cumcount() + 1
             show_cols = [
-                "Set #",
-                "Reps",
-                "Weight(kg)",
-                "multiplier",
-                "Actual Weight (kg)",
-                "Volume (kg)",
-                "PR",
+                "Set #", "Reps", "Weight(kg)", "multiplier",
+                "Actual Weight (kg)", "Volume (kg)", "PR"
             ]
             with st.expander(ex, expanded=True):
                 st.markdown(f"### 💪 {ex}")
                 st.dataframe(df_ex[show_cols], use_container_width=True)
-
-                # ----- Last-5-sessions volume trend (incl. selected day) ----- #
                 recent_days = (
                     df[df["Exercise"] == ex]["Day"]
                     .drop_duplicates()
@@ -163,32 +134,21 @@ else:
                     chart = (
                         alt.Chart(vh)
                         .mark_line(point=True)
-                        .encode(
-                            x="Day:T",
-                            y=alt.Y("Volume (kg):Q", title="Volume (kg)"),
-                        )
+                        .encode(x="Day:T", y=alt.Y("Volume (kg):Q", title="Volume (kg)"))
                         .properties(height=200)
                     )
                     st.altair_chart(chart, use_container_width=True)
-
-    else:  # By Exercise
+    else:
         for d in sorted(df_view["Day"].unique(), reverse=True):
             df_day = df_view[df_view["Day"] == d].copy()
             df_day["Set #"] = df_day.groupby(["Day", "Exercise"]).cumcount() + 1
             show_cols = [
-                "Set #",
-                "Reps",
-                "Weight(kg)",
-                "multiplier",
-                "Actual Weight (kg)",
-                "Volume (kg)",
-                "PR",
+                "Set #", "Reps", "Weight(kg)", "multiplier",
+                "Actual Weight (kg)", "Volume (kg)", "PR"
             ]
             with st.expander(str(d), expanded=True):
                 st.markdown(f"### 📅 {d}")
                 st.dataframe(df_day[show_cols], use_container_width=True)
-
-        # ----- Volume trend for selected exercise (latest 5 sessions) ----- #
         recent_days = (
             df[df["Exercise"] == selected_ex]["Day"]
             .drop_duplicates()
@@ -206,10 +166,7 @@ else:
             chart = (
                 alt.Chart(vh)
                 .mark_line(point=True)
-                .encode(
-                    x="Day:T",
-                    y=alt.Y("Volume (kg):Q", title="Volume (kg)"),
-                )
+                .encode(x="Day:T", y=alt.Y("Volume (kg):Q", title="Volume (kg)"))
                 .properties(height=200)
             )
             st.altair_chart(chart, use_container_width=True)
