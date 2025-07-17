@@ -3,7 +3,7 @@ import streamlit as st
 import altair as alt
 
 # ---------- Streamlit page & style ---------- #
-st.set_page_config(page_title="Workout Dashboard", layout="wide")
+st.set_page_config(page_title="Julien's Workout Dashboard", layout="wide")
 st.markdown(
     """
     <style>
@@ -14,7 +14,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("🏋️ Workout Dashboard")
+st.title("🏋️ Julien's Workout Dashboard")
 st.markdown(
     "Tracking Julien's sets, volume, and personal bests 🏅. "
     "View by day or by exercise. Volume trends include the selected day. "
