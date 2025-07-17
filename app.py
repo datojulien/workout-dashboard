@@ -22,7 +22,7 @@ df['Date'] = pd.to_datetime(df['Date'])
 df['Day'] = df['Date'].dt.date
 
 # Filter out cardio (e.g. Stair Stepper)
-df = df[~df['Exercise'].str.contains("Stair Stepper", case=False, na=False)]
+df = df[~df['Exercise'].str.contains("Stair Stepper|Cycling|Running", case=False, na=False)]
 
 # Add computed columns
 df['Actual Weight (kg)'] = df['Weight(kg)'] * df['multiplier']
