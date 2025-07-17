@@ -2,10 +2,10 @@ import pandas as pd
 import streamlit as st
 import altair as alt
 
-# Set page and layout
-st.set_page_config(page_title="Workout Dashboard", layout="wide")
+# Page setup
+st.set_page_config(page_title="Julien's Workout Dashboard", layout="wide")
 
-# Optional styling
+# Styling
 st.markdown("""
     <style>
     .stDataFrame {border: 1px solid #eee; border-radius: 10px;}
@@ -13,43 +13,46 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🏋️ Workout Dashboard")
-st.markdown("Track sets, volume, and personal bests 🏅. View by day or by exercise. Includes 📈 volume trends for weighted exercises.")
+st.title("🏋️ Julien's Workout Dashboard")
+st.markdown("Tracking Julien's sets, volume, and personal bests 🏅. View by day or by exercise. Volume trends include the selected day. Tracking my progress so Coach Azim has fewer reasons to be disappointed.")
 
-# Load CSV
+# Load data
 csv_url = "https://raw.githubusercontent.com/datojulien/workout-dashboard/main/WorkoutExport.csv"
 df = pd.read_csv(csv_url)
 df['Date'] = pd.to_datetime(df['Date'])
 df['Day'] = df['Date'].dt.date
 
-# Filter out cardio
+# Remove cardio
 df = df[~df['Exercise'].str.contains("Stair Stepper|Cycling", case=False, na=False)]
 
-# Compute actual weight and volume
+# Calculate extra metrics
 df['Actual Weight (kg)'] = df['Weight(kg)'] * df['multiplier']
 df['Volume (kg)'] = df['Actual Weight (kg)'] * df['Reps']
-
-# PR flag
 exercise_prs = df.groupby('Exercise')['Actual Weight (kg)'].max().to_dict()
 df['PR'] = df.apply(lambda row: "🏅" if row['Actual Weight (kg)'] == exercise_prs[row['Exercise']] else "", axis=1)
 
-# Sidebar filters
+# Sidebar controls
 st.sidebar.title("Filters")
 view_mode = st.sidebar.radio("📊 View Mode", ["By Date", "By Exercise"])
+hide_light_sets = st.sidebar.checkbox("💪 Azim View™ – Hide light sets (< 40kg)")
 
 if view_mode == "By Date":
     unique_days = sorted(df['Day'].unique(), reverse=True)
     selected_day = st.sidebar.selectbox("📅 Select a date", unique_days)
     df_view = df[df['Day'] == selected_day]
+    if hide_light_sets:
+        df_view = df_view[df_view['Actual Weight (kg)'] >= 40]
     summary_title = f"📊 Summary for {selected_day}"
 
 elif view_mode == "By Exercise":
     all_exercises = sorted(df['Exercise'].unique())
     selected_exercise = st.sidebar.selectbox("💪 Select an exercise", all_exercises)
     df_view = df[df['Exercise'] == selected_exercise]
+    if hide_light_sets:
+        df_view = df_view[df_view['Actual Weight (kg)'] >= 40]
     summary_title = f"📊 Summary for {selected_exercise}"
 
-# Summary section
+# Summary
 total_volume = df_view['Volume (kg)'].sum()
 total_sets = len(df_view)
 top_lift = df_view['Actual Weight (kg)'].max()
@@ -74,18 +77,21 @@ else:
                 st.markdown(f"### 💪 {exercise}")
                 st.dataframe(df_display, use_container_width=True)
 
-                # Show volume trend only if non-zero
+                recent_days = (
+                    df[df['Exercise'] == exercise]['Day']
+                    .drop_duplicates()
+                    .sort_values(ascending=False)
+                )
+                recent_days = recent_days[recent_days <= selected_day].head(5).sort_values()
+
                 volume_history = (
-                    df[df['Exercise'] == exercise]
+                    df[(df['Exercise'] == exercise) & (df['Day'].isin(recent_days))]
                     .groupby('Day', as_index=False)['Volume (kg)']
                     .sum()
-                    .sort_values('Day', ascending=False)
-                    .head(5)
-                    .sort_values('Day')
                 )
 
                 if not volume_history.empty and volume_history['Volume (kg)'].max() > 0:
-                    st.markdown("**📈 Volume Trend (last 5 sessions)**")
+                    st.markdown("**📈 Volume Trend (last 5 sessions including this one)**")
                     chart = alt.Chart(volume_history).mark_line(point=True).encode(
                         x='Day:T',
                         y=alt.Y('Volume (kg):Q', title='Volume (kg)')
@@ -102,14 +108,18 @@ else:
                 st.markdown(f"### 📅 {day}")
                 st.dataframe(df_display, use_container_width=True)
 
-        # Volume trend across all days for the selected exercise
+        recent_days = (
+            df[df['Exercise'] == selected_exercise]['Day']
+            .drop_duplicates()
+            .sort_values(ascending=False)
+            .head(5)
+            .sort_values()
+        )
+
         volume_history = (
-            df[df['Exercise'] == selected_exercise]
+            df[(df['Exercise'] == selected_exercise) & (df['Day'].isin(recent_days))]
             .groupby('Day', as_index=False)['Volume (kg)']
             .sum()
-            .sort_values('Day', ascending=False)
-            .head(5)
-            .sort_values('Day')
         )
 
         if not volume_history.empty and volume_history['Volume (kg)'].max() > 0:
