@@ -8,7 +8,7 @@ st.title("🏋️ Workout Dashboard")
 st.markdown("Displays exercises, sets, reps, and weights from your workout log.")
 
 # URL of your CSV file on GitHub (raw view)
-csv_url = "https://raw.githubusercontent.com/datojulien/Yworkout-dashboard/main/WorkoutExport.csv"
+csv_url = "https://raw.githubusercontent.com/datojulien/workout-dashboard/main/WorkoutExport.csv"
 
 # Load and process data
 df = pd.read_csv(csv_url)
