@@ -73,7 +73,7 @@ def classify_exercise(name: str) -> str:
     pull_kw = ["row", "pulldown", "pull-up", "curl", "face pull", "shrug", "chin"]
 
     if any(k in n for k in lower_kw):
-        return "Lower"
+        return "Lower Body"
     if any(k in n for k in push_kw):
         return "Push"
     if any(k in n for k in pull_kw):
