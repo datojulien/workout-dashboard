@@ -17,7 +17,6 @@ st.markdown(
     "View by day or by exercise. Volume trends include the selected day. "
     "Tracking my progress so Coach Azim has fewer reasons to be disappointed."
 )
-)
 
 # ---------- Load & preprocess data ---------- #
 df = pd.read_csv(
