@@ -21,7 +21,7 @@ st.markdown(
 df = pd.read_csv(
     "https://raw.githubusercontent.com/datojulien/workout-dashboard/main/WorkoutExport.csv"
 )
-df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+df["Date"] = pd.to_datetime(df["Date"], errors="coerce", utc=True).dt.tz_convert(None)
 df["Day"] = df["Date"].dt.date
 # drop any NaT days
 # Exclude cardio exercises
