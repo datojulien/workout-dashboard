@@ -55,16 +55,20 @@ def assign_pr(row):
 df["PR"] = df.apply(assign_pr, axis=1)
 
 # ---------- Push / Pull / Lower classifier ---------- #
-def classify_exercise(name: str) -> str:
-    n = name.lower()
+def classify_exercise(name) -> str:
+    # Safely convert to string to avoid float errors
+    n = str(name).lower()
     lower_kw = ["squat", "deadlift", "lunge", "leg", "hamstring", "calf",
                 "hip thrust", "thrust", "glute", "rdl", "good morning"]
     push_kw  = ["bench", "overhead press", "shoulder press", "incline",
                 "dip", "dips", "push", "tricep"]
     pull_kw  = ["row", "pulldown", "pull-up", "curl", "face pull", "shrug", "chin"]
-    if any(k in n for k in lower_kw): return "Lower"
-    if any(k in n for k in push_kw):  return "Push"
-    if any(k in n for k in pull_kw):  return "Pull"
+    if any(k in n for k in lower_kw):
+        return "Lower"
+    if any(k in n for k in push_kw):
+        return "Push"
+    if any(k in n for k in pull_kw):
+        return "Pull"
     return "Other"
 
 df["Workout Type"] = df["Exercise"].apply(classify_exercise)
@@ -135,7 +139,7 @@ with st.expander("📆 Weekly Summary (last 4 weeks)", expanded=False):
 if df_view.empty:
     st.info("No workout data for this selection.")
 else:
-    # Precompute Set # for export
+    # Prepare for export
     df_export = df_view.copy()
     df_export["Set #"] = df_export.groupby(["Day", "Exercise"]).cumcount() + 1
     export_cols = [
@@ -151,7 +155,6 @@ else:
                          "Actual Weight (kg)", "Volume (kg)", "PR"]
             with st.expander(f"💪 {ex}", expanded=True):
                 st.dataframe(df_ex[show_cols], use_container_width=True)
-
                 # mini trend
                 recent_days = (
                     df[df["Exercise"] == ex]["Day"]
@@ -183,7 +186,7 @@ else:
             mime="text/csv"
         )
 
-    else:  # By Exercise
+    else:  # View by Exercise
         for d in sorted(df_view["Day"].unique(), reverse=True):
             df_day = df_view[df_view["Day"] == d].copy()
             df_day["Set #"] = df_day.groupby(["Day", "Exercise"]).cumcount() + 1
