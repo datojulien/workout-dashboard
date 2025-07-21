@@ -56,19 +56,15 @@ df["PR"] = df.apply(assign_pr, axis=1)
 
 # ---------- Push / Pull / Lower classifier ---------- #
 def classify_exercise(name) -> str:
-    # Safely convert to string to avoid float errors
     n = str(name).lower()
     lower_kw = ["squat", "deadlift", "lunge", "leg", "hamstring", "calf",
                 "hip thrust", "thrust", "glute", "rdl", "good morning"]
     push_kw  = ["bench", "overhead press", "shoulder press", "incline",
                 "dip", "dips", "push", "tricep"]
     pull_kw  = ["row", "pulldown", "pull-up", "curl", "face pull", "shrug", "chin"]
-    if any(k in n for k in lower_kw):
-        return "Lower"
-    if any(k in n for k in push_kw):
-        return "Push"
-    if any(k in n for k in pull_kw):
-        return "Pull"
+    if any(k in n for k in lower_kw): return "Lower"
+    if any(k in n for k in push_kw):  return "Push"
+    if any(k in n for k in pull_kw):  return "Pull"
     return "Other"
 
 df["Workout Type"] = df["Exercise"].apply(classify_exercise)
@@ -98,17 +94,18 @@ view_mode  = st.sidebar.radio("📊 View Mode", ("By Date", "By Exercise"))
 hide_light = st.sidebar.checkbox("💪 Azim View™ – Hide light sets (< 40 kg)")
 
 if view_mode == "By Date":
-    all_days     = sorted(df["Day"].unique(), reverse=True)
+    # drop NaT before sorting
+    all_days = sorted(df["Day"].dropna().unique(), reverse=True)
     selected_day = st.sidebar.selectbox("📅 Select a date", all_days)
-    df_view      = df[df["Day"] == selected_day]
+    df_view = df[df["Day"] == selected_day]
     if hide_light:
         df_view = df_view[df_view["Actual Weight (kg)"] >= 40]
-    day_type     = df_view["Workout Type"].value_counts().idxmax() if not df_view.empty else "N/A"
+    day_type = df_view["Workout Type"].value_counts().idxmax() if not df_view.empty else "N/A"
     summary_title = f"📊 Summary for {selected_day} &nbsp;|&nbsp; **{day_type} Day**"
 else:
-    all_ex        = sorted(df["Exercise"].unique())
-    selected_ex   = st.sidebar.selectbox("💪 Select an exercise", all_ex)
-    df_view       = df[df["Exercise"] == selected_ex]
+    all_ex      = sorted(df["Exercise"].unique())
+    selected_ex = st.sidebar.selectbox("💪 Select an exercise", all_ex)
+    df_view     = df[df["Exercise"] == selected_ex]
     if hide_light:
         df_view = df_view[df_view["Actual Weight (kg)"] >= 40]
     summary_title = f"📊 Summary for {selected_ex}"
@@ -139,7 +136,7 @@ with st.expander("📆 Weekly Summary (last 4 weeks)", expanded=False):
 if df_view.empty:
     st.info("No workout data for this selection.")
 else:
-    # Prepare for export
+    # prepare export
     df_export = df_view.copy()
     df_export["Set #"] = df_export.groupby(["Day", "Exercise"]).cumcount() + 1
     export_cols = [
@@ -155,7 +152,8 @@ else:
                          "Actual Weight (kg)", "Volume (kg)", "PR"]
             with st.expander(f"💪 {ex}", expanded=True):
                 st.dataframe(df_ex[show_cols], use_container_width=True)
-                # mini trend
+
+                # volume trend
                 recent_days = (
                     df[df["Exercise"] == ex]["Day"]
                     .drop_duplicates()
@@ -187,7 +185,9 @@ else:
         )
 
     else:  # View by Exercise
-        for d in sorted(df_view["Day"].unique(), reverse=True):
+        # drop NaT before sorting in loop
+        dates_ex = [d for d in df_view["Day"].unique() if pd.notna(d)]
+        for d in sorted(dates_ex, reverse=True):
             df_day = df_view[df_view["Day"] == d].copy()
             df_day["Set #"] = df_day.groupby(["Day", "Exercise"]).cumcount() + 1
             show_cols = ["Set #", "Reps", "Weight(kg)", "multiplier",
