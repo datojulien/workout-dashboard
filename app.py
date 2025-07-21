@@ -32,6 +32,13 @@ df = df[~df["Exercise"].str.contains("Stair Stepper|Cycling", case=False, na=Fal
 df["Actual Weight (kg)"] = df["Weight(kg)"].fillna(0) * df["multiplier"].fillna(1)
 df["Volume (kg)"] = df["Actual Weight (kg)"] * df["Reps"].fillna(0)
 
+# ---------- Estimated 1RM ---------- #
+df['1RM Estimate'] = df.apply(
+    lambda r: r['Actual Weight (kg)'] * (1 + r['Reps'] / 30)
+    if r['Actual Weight (kg)'] > 0 else None,
+    axis=1
+)
+
 # ---------- PR Detection ---------- #
 prs_weight = (
     df[df["Actual Weight (kg)"] > 0]
@@ -131,6 +138,55 @@ with st.expander("📆 Weekly Summary (last 4 weeks)", expanded=False):
         mime="text/csv"
     )
 
+# ---------- Advanced Metrics & Trends ---------- #
+with st.expander("🔍 Advanced Metrics & Trends", expanded=False):
+    # Prepare weekly ACWR & PR counts
+    weekly = df.groupby('Week', as_index=False).agg({
+        'Volume (kg)': 'sum',
+        'PR': lambda x: (x == '🏅').sum()
+    }).rename(columns={'Volume (kg)': 'Total Volume', 'PR': 'PR Count'}).sort_values('Week')
+    weekly['ACWR'] = weekly['Total Volume'] / weekly['Total Volume'].rolling(4, min_periods=1).mean()
+
+    # ACWR Chart
+    acwr_chart = alt.Chart(weekly).mark_line(point=True).encode(
+        x=alt.X('Week:O', title='ISO Week'),
+        y=alt.Y('ACWR:Q', title='Acute:Chronic Workload Ratio')
+    ).properties(title='Weekly ACWR')
+    st.altair_chart(acwr_chart, use_container_width=True)
+
+    # PR Count Chart
+    pr_chart = alt.Chart(weekly).mark_bar().encode(
+        x=alt.X('Week:O', title='ISO Week'),
+        y=alt.Y('PR Count:Q', title='Weekly PRs')
+    ).properties(title='Weekly Personal Records')
+    st.altair_chart(pr_chart, use_container_width=True)
+
+    # 1RM Trend with Regression
+    irm = df.dropna(subset=['1RM Estimate']).groupby('Day', as_index=False)['1RM Estimate'].max().sort_values('Day')
+    base_irm = alt.Chart(irm).encode(x=alt.X('Day:T', title='Date'))
+    line_irm = base_irm.mark_line(point=True).encode(y=alt.Y('1RM Estimate:Q', title='Estimated 1RM (kg)'))
+    reg_line = base_irm.transform_regression('Day', '1RM Estimate', method='linear', extent=[irm['Day'].min(), irm['Day'].max()]).mark_line(strokeDash=[4,2])
+    st.altair_chart(line_irm + reg_line, use_container_width=True)
+
+# ---------- Volume & Distribution by Muscle Group ---------- #
+with st.expander("💪 Volume & Distribution by Muscle Group", expanded=False):
+    # Volume by Workout Type
+    vol_by_type = df.groupby('Workout Type', as_index=False)['Volume (kg)'].sum()
+    chart_vol_type = alt.Chart(vol_by_type).mark_bar().encode(
+        x=alt.X('Workout Type:N', title='Workout Type'),
+        y=alt.Y('Volume (kg):Q', title='Total Volume (kg)')
+    ).properties(title='Volume by Muscle Group')
+    st.altair_chart(chart_vol_type, use_container_width=True)
+
+    # Top Exercises by Set Count
+    sets_by_ex = df.groupby('Exercise', as_index=False).size().rename(columns={0: 'Set Count'})
+    top_ex = sets_by_ex.sort_values('Set Count', ascending=False).head(10)
+    chart_ex = alt.Chart(top_ex).mark_bar().encode(
+        x=alt.X('Exercise:N', sort='-y', title='Exercise'),
+        y=alt.Y('Set Count:Q', title='Number of Sets')
+    ).properties(title='Top 10 Exercises by Set Count')
+    st.altair_chart(chart_ex, use_container_width=True)
+
 # ---------- Display & download ---------- #
 if df_view.empty:
     st.info("No data for this selection.")
@@ -147,9 +203,7 @@ else:
             show_cols = ["Set #","Reps","Weight(kg)","multiplier",
                          "Actual Weight (kg)","Volume (kg)","PR"]
             with st.expander(f"💪 {ex}", expanded=True):
-                st.dataframe(df_ex[show_cols], use_container_width=True)
-
-                # Volume trend for last 5 sessions incl. selected day
+                # Compute recent days and rolling avg
                 all_dates = (
                     df[df["Exercise"] == ex]["Day"]
                       .dropna()
@@ -160,21 +214,15 @@ else:
                 recent_days = sorted([selected_day] + prev4)
                 vh = (
                     df[(df["Exercise"] == ex) & (df["Day"].isin(recent_days))]
-                      .groupby("Day", as_index=False)["Volume (kg)"]
-                      .sum()
+                      .groupby("Day", as_index=False)["Volume (kg)"].sum()
                 )
                 if not vh.empty and vh["Volume (kg)"].max() > 0:
+                    vh['Rolling Avg'] = vh['Volume (kg)'].rolling(window=2, min_periods=1).mean()
+                    base_v = alt.Chart(vh).encode(x=alt.X("Day:T", axis=alt.Axis(format="%b %d", tickCount=5, labelAngle=-45)))
+                    line_act = base_v.mark_line(point=True).encode(y=alt.Y("Volume (kg):Q", title="Volume (kg)"))
+                    line_roll = base_v.mark_line(strokeDash=[4,2]).encode(y=alt.Y("Rolling Avg:Q", title="Rolling Avg"))
                     st.markdown("**📈 Volume trend (last 5 sessions)**")
-                    chart = (
-                        alt.Chart(vh)
-                        .mark_line(point=True)
-                        .encode(
-                            x=alt.X("Day:T", axis=alt.Axis(format="%b %d", tickCount=5, labelAngle=-45)),
-                            y=alt.Y("Volume (kg):Q", title="Volume (kg)")
-                        )
-                        .properties(height=200)
-                    )
-                    st.altair_chart(chart, use_container_width=True)
+                    st.altair_chart(line_act + line_roll, use_container_width=True)
 
         csv_full = df_export[export_cols].to_csv(index=False).encode("utf-8")
         st.download_button("📥 Download Full Workout CSV", csv_full, f"workout_{selected_day}.csv", "text/csv")
@@ -199,21 +247,15 @@ else:
         recent_days = sorted(recent_days_list)
         vh = (
             df[(df["Exercise"] == selected_ex) & (df["Day"].isin(recent_days))]
-              .groupby("Day", as_index=False)["Volume (kg)"]
-              .sum()
+              .groupby("Day", as_index=False)["Volume (kg)"].sum()
         )
         if not vh.empty and vh["Volume (kg)"].max() > 0:
+            vh['Rolling Avg'] = vh['Volume (kg)'].rolling(window=2, min_periods=1).mean()
+            base_v = alt.Chart(vh).encode(x=alt.X("Day:T", axis=alt.Axis(format="%b %d", tickCount=5, labelAngle=-45)))
+            line_act = base_v.mark_line(point=True).encode(y=alt.Y("Volume (kg):Q", title="Volume (kg)"))
+            line_roll = base_v.mark_line(strokeDash=[4,2]).encode(y=alt.Y("Rolling Avg:Q", title="Rolling Avg"))
             st.markdown("**📈 Volume trend (last 5 sessions)**")
-            chart = (
-                alt.Chart(vh)
-                .mark_line(point=True)
-                .encode(
-                    x=alt.X("Day:T", axis=alt.Axis(format="%b %d", tickCount=5, labelAngle=-45)),
-                    y=alt.Y("Volume (kg):Q", title="Volume (kg)")
-                )
-                .properties(height=200)
-            )
-            st.altair_chart(chart, use_container_width=True)
+            st.altair_chart(line_act + line_roll, use_container_width=True)
 
         csv_full = df_export[export_cols].to_csv(index=False).encode("utf-8")
         st.download_button(
