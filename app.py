@@ -101,8 +101,7 @@ if view_mode == "By Date":
         df_view = df_view[df_view["Actual Weight (kg)"] >= 40]
     day_type = df_view["Workout Type"].value_counts().idxmax() if not df_view.empty else "N/A"
     summary_title = f"📊 Summary for {selected_day} | **{day_type} Day**"
-
-else:  # By Exercise
+else:
     all_ex = sorted(df["Exercise"].dropna().unique())
     selected_ex = st.sidebar.selectbox("💪 Select an exercise", all_ex)
     df_view = df[df["Exercise"] == selected_ex]
@@ -113,7 +112,7 @@ else:  # By Exercise
 # ---------- Summary metrics ---------- #
 total_vol = df_view["Volume (kg)"].sum()
 total_sets = len(df_view)
-heaviest = df_view["Actual Weight (kg)"].max()
+heaviest   = df_view["Actual Weight (kg)"].max()
 
 st.markdown(f"### {summary_title}", unsafe_allow_html=True)
 c1, c2, c3 = st.columns(3)
@@ -136,7 +135,6 @@ with st.expander("📆 Weekly Summary (last 4 weeks)", expanded=False):
 if df_view.empty:
     st.info("No data for this selection.")
 else:
-    # prepare export
     df_export = df_view.copy()
     df_export["Set #"] = df_export.groupby(["Day","Exercise"]).cumcount() + 1
     export_cols = ["Day","Exercise","Set #","Reps","Weight(kg)",
@@ -151,16 +149,17 @@ else:
             with st.expander(f"💪 {ex}", expanded=True):
                 st.dataframe(df_ex[show_cols], use_container_width=True)
 
-                # volume trend for last 5 sessions incl. selected day
+                # Volume trend for last 5 sessions incl. selected day
                 all_dates = (
                     df[df["Exercise"] == ex]["Day"]
+                      .dropna()
                       .drop_duplicates()
                       .sort_values(ascending=False)
                 )
-                prev4 = all_dates[all_dates < selected_day].head(4)
-                recent_days = sorted(pd.Index([selected_day]).append(prev4).unique())
+                prev4 = all_dates[all_dates < selected_day].head(4).tolist()
+                recent_days = sorted([selected_day] + prev4)
                 vh = (
-                    df[(df["Exercise"] == ex)&(df["Day"].isin(recent_days))]
+                    df[(df["Exercise"] == ex) & (df["Day"].isin(recent_days))]
                       .groupby("Day", as_index=False)["Volume (kg)"]
                       .sum()
                 )
@@ -177,11 +176,10 @@ else:
                     )
                     st.altair_chart(chart, use_container_width=True)
 
-        # download full workout CSV
         csv_full = df_export[export_cols].to_csv(index=False).encode("utf-8")
         st.download_button("📥 Download Full Workout CSV", csv_full, f"workout_{selected_day}.csv", "text/csv")
 
-    else:  # By Exercise
+    else:
         for d in sorted(df_view["Day"].dropna().unique(), reverse=True):
             df_day = df_view[df_view["Day"] == d].copy()
             df_day["Set #"] = df_day.groupby(["Day","Exercise"]).cumcount() + 1
@@ -190,16 +188,17 @@ else:
             with st.expander(f"📅 {d}", expanded=True):
                 st.dataframe(df_day[show_cols], use_container_width=True)
 
-        # volume trend for exercise
         recent_days = (
             df[df["Exercise"] == selected_ex]["Day"]
+              .dropna()
               .drop_duplicates()
               .sort_values(ascending=False)
               .head(5)
-              .sort_values()
+              .tolist()
         )
+        recent_days = sorted(recent_days)
         vh = (
-            df[(df["Exercise"] == selected_ex)&(df["Day"].isin(recent_days))]
+            df[(df["Exercise"] == selected_ex) & (df["Day"].isin(recent_days))]
               .groupby("Day", as_index=False)["Volume (kg)"]
               .sum()
         )
@@ -216,6 +215,5 @@ else:
             )
             st.altair_chart(chart, use_container_width=True)
 
-        # download full exercise CSV
         csv_full = df_export[export_cols].to_csv(index=False).encode("utf-8")
         st.download_button("📥 Download Full Exercise CSV", csv_full, f"{selected_ex.replace(' ','_')}_all.csv", "text/csv")
