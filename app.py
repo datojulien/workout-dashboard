@@ -22,15 +22,15 @@ st.markdown(
 # ---------- Load data ---------- #
 CSV_URL = "https://raw.githubusercontent.com/datojulien/workout-dashboard/main/WorkoutExport.csv"
 df = pd.read_csv(CSV_URL)
-df["Date"] = pd.to_datetime(df["Date"])
+df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
 df["Day"] = df["Date"].dt.date
 
 # Exclude cardio-only rows
 df = df[~df["Exercise"].str.contains("Stair Stepper|Cycling", case=False, na=False)]
 
 # ---------- Derived metrics ---------- #
-df["Actual Weight (kg)"] = df["Weight(kg)"] * df["multiplier"]
-df["Volume (kg)"] = df["Actual Weight (kg)"] * df["Reps"]
+df["Actual Weight (kg)"] = df["Weight(kg)"].fillna(0) * df["multiplier"].fillna(1)
+df["Volume (kg)"] = df["Actual Weight (kg)"] * df["Reps"].fillna(0)
 
 # ---------- PR Detection ---------- #
 prs_weight = (
@@ -94,7 +94,7 @@ view_mode  = st.sidebar.radio("📊 View Mode", ("By Date", "By Exercise"))
 hide_light = st.sidebar.checkbox("💪 Azim View™ – Hide light sets (< 40 kg)")
 
 if view_mode == "By Date":
-    # drop NaT before sorting
+    # drop NaT before sorting days
     all_days = sorted(df["Day"].dropna().unique(), reverse=True)
     selected_day = st.sidebar.selectbox("📅 Select a date", all_days)
     df_view = df[df["Day"] == selected_day]
@@ -102,10 +102,12 @@ if view_mode == "By Date":
         df_view = df_view[df_view["Actual Weight (kg)"] >= 40]
     day_type = df_view["Workout Type"].value_counts().idxmax() if not df_view.empty else "N/A"
     summary_title = f"📊 Summary for {selected_day} &nbsp;|&nbsp; **{day_type} Day**"
+
 else:
-    all_ex      = sorted(df["Exercise"].unique())
+    # drop NaN before sorting exercises
+    all_ex = sorted(df["Exercise"].dropna().unique())
     selected_ex = st.sidebar.selectbox("💪 Select an exercise", all_ex)
-    df_view     = df[df["Exercise"] == selected_ex]
+    df_view = df[df["Exercise"] == selected_ex]
     if hide_light:
         df_view = df_view[df_view["Actual Weight (kg)"] >= 40]
     summary_title = f"📊 Summary for {selected_ex}"
@@ -136,7 +138,7 @@ with st.expander("📆 Weekly Summary (last 4 weeks)", expanded=False):
 if df_view.empty:
     st.info("No workout data for this selection.")
 else:
-    # prepare export
+    # prepare for single CSV export
     df_export = df_view.copy()
     df_export["Set #"] = df_export.groupby(["Day", "Exercise"]).cumcount() + 1
     export_cols = [
@@ -145,7 +147,8 @@ else:
     ]
 
     if view_mode == "By Date":
-        for ex in df_view["Exercise"].unique():
+        # show each exercise table and trend
+        for ex in df_view["Exercise"].dropna().unique():
             df_ex = df_view[df_view["Exercise"] == ex].copy()
             df_ex["Set #"] = df_ex.groupby(["Day", "Exercise"]).cumcount() + 1
             show_cols = ["Set #", "Reps", "Weight(kg)", "multiplier",
@@ -184,9 +187,8 @@ else:
             mime="text/csv"
         )
 
-    else:  # View by Exercise
-        # drop NaT before sorting in loop
-        dates_ex = [d for d in df_view["Day"].unique() if pd.notna(d)]
+    else:  # By Exercise
+        dates_ex = [d for d in df_view["Day"].dropna().unique()]
         for d in sorted(dates_ex, reverse=True):
             df_day = df_view[df_view["Day"] == d].copy()
             df_day["Set #"] = df_day.groupby(["Day", "Exercise"]).cumcount() + 1
