@@ -113,10 +113,19 @@ if df_sel.empty:
 cutoff = pd.Timestamp.today() - timedelta(weeks=weeks)
 irm = df_weighted.groupby("Date",as_index=False)["1RM Estimate"].max()
 irm = irm[irm["Date"]>=cutoff]
-base_irm = alt.Chart(irm).encode(x=alt.X("Date:T",axis=alt.Axis(format="%b %d",labelAngle=-45)), y="1RM Estimate:Q")
-st.altair_chart((base_irm.mark_line(point=True)+base_irm.transform_regression("Date","1RM Estimate",method="linear").mark_line(strokeDash=[4,2])).properties(height=200), use_container_width=True)
-pr = df[df["Date"]>=cutoff].groupby(pd.Grouper(key="Date",freq="W"))["PR"].apply(lambda x: x.eq("🏅").sum()).reset_index(name="PR Count")
-st.altair_chart(alt.Chart(pr).mark_bar().encode(x="Date:T",y="PR Count:Q").properties(height=200), use_container_width=True)
+base_irm = alt.Chart(irm).encode(
+    x=alt.X("Date:T",axis=alt.Axis(format="%b %d",labelAngle=-45)),
+    y="1RM Estimate:Q"
+)
+st.altair_chart(
+    (base_irm.mark_line(point=True) +
+     base_irm.transform_regression("Date","1RM Estimate",method="linear").mark_line(strokeDash=[4,2]))
+    .properties(height=200), use_container_width=True
+)
+
+# ---------- ACWR ---------- #
+acwr = weekly_summary["Total Volume"].iloc[0] / weekly_summary["Total Volume"].iloc[1:5].mean()
+st.markdown(f"**⚖️ ACWR (This week vs last 4 weeks avg):** {acwr:.2f}")
 
 # ---------- Detailed sets and last-5-session charts ---------- #
 with st.expander("📋 Detailed sets/tables", expanded=True):
@@ -128,8 +137,12 @@ with st.expander("📋 Detailed sets/tables", expanded=True):
             st.dataframe(df_ex[["Set #","Reps","Weight(kg)","multiplier","Actual Weight (kg)","Volume (kg)","PR"]], use_container_width=True)
             # last 5 sessions volume trend
             days_list = sorted(df[df["Exercise"]==ex]["Day"].dropna().unique(), reverse=True)[:5]
-            trend = df[(df["Exercise"]==ex)&(df["Day"].isin(days_list))].groupby("Day")["Volume (kg)"].sum().reset_index()
-            chart = alt.Chart(trend).mark_line(point=True).encode(x=alt.X("Day:T"), y=alt.Y("Volume (kg):Q") ).properties(height=150)
+            trend = df[(df["Exercise"]==ex)&(df["Day"].isin(days_list))]
+                      .groupby("Day")["Volume (kg)"].sum().reset_index()
+            chart = alt.Chart(trend).mark_line(point=True).encode(
+                x=alt.X("Day:T"),
+                y=alt.Y("Volume (kg):Q")
+            ).properties(height=150)
             st.altair_chart(chart, use_container_width=True)
     else:
         for d in sorted(df_sel["Day"].unique(),reverse=True):
@@ -137,7 +150,6 @@ with st.expander("📋 Detailed sets/tables", expanded=True):
             df_day["Set #"] = df_day.groupby(["Day","Exercise"]).cumcount()+1
             st.subheader(str(d))
             st.dataframe(df_day[["Set #","Exercise","Reps","Weight(kg)","multiplier","Actual Weight (kg)","Volume (kg)","PR"]], use_container_width=True)
-            # last 5 sessions not applicable by date
 
 # ---------- Download detailed CSV ---------- #
 df_export = df_sel.copy()
