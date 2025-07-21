@@ -156,7 +156,7 @@ else:
                       .drop_duplicates()
                       .sort_values(ascending=False)
                 )
-                prev4 = all_dates[all_dates < selected_day].head(4).tolist()
+                prev4 = [d for d in all_dates if d < selected_day][:4]
                 recent_days = sorted([selected_day] + prev4)
                 vh = (
                     df[(df["Exercise"] == ex) & (df["Day"].isin(recent_days))]
@@ -188,7 +188,7 @@ else:
             with st.expander(f"📅 {d}", expanded=True):
                 st.dataframe(df_day[show_cols], use_container_width=True)
 
-        recent_days = (
+        recent_days_list = (
             df[df["Exercise"] == selected_ex]["Day"]
               .dropna()
               .drop_duplicates()
@@ -196,7 +196,7 @@ else:
               .head(5)
               .tolist()
         )
-        recent_days = sorted(recent_days)
+        recent_days = sorted(recent_days_list)
         vh = (
             df[(df["Exercise"] == selected_ex) & (df["Day"].isin(recent_days))]
               .groupby("Day", as_index=False)["Volume (kg)"]
@@ -216,4 +216,9 @@ else:
             st.altair_chart(chart, use_container_width=True)
 
         csv_full = df_export[export_cols].to_csv(index=False).encode("utf-8")
-        st.download_button("📥 Download Full Exercise CSV", csv_full, f"{selected_ex.replace(' ','_')}_all.csv", "text/csv")
+        st.download_button(
+            "📥 Download Full Exercise CSV",
+            csv_full,
+            f"{selected_ex.replace(' ','_')}_all.csv",
+            "text/csv"
+        )
