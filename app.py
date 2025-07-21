@@ -1,3 +1,4 @@
+
 import pandas as pd
 import streamlit as st
 import altair as alt
@@ -144,10 +145,30 @@ else:
     acwr = weekly_vol['Total Volume'].iloc[0] / weekly_vol['Total Volume'].iloc[1:5].mean()
     st.markdown(f"**⚖️ ACWR (This week vs last 4 weeks avg):** {acwr:.2f}")
 
+    # ---------- Weekly PR Counts ---------- #
     pr_counts = df.groupby(pd.Grouper(key='Date', freq='W'))['PR'].apply(lambda x: x.eq('🏅').sum()).reset_index()
+    pr_counts = pr_counts.rename(columns={'PR':'PR Count'})
     pr_chart = alt.Chart(pr_counts).mark_bar().encode(
         x=alt.X('Date:T', title='Week'),
-        y=alt.Y('PR:Q', title='PR Count')
+        y=alt.Y('PR Count:Q', title='PR Count')
     )
     st.markdown("**🏆 Weekly PR Counts**")
-    st.altair_chart(pr_chart.properties
+    st.altair_chart(pr_chart.properties(height=250), use_container_width=True)
+
+    # ---------- Volume by Muscle Group ---------- #
+    vol_muscle = df_view.groupby('Workout Type')['Volume (kg)'].sum().reset_index()
+    muscle_chart = alt.Chart(vol_muscle).mark_bar().encode(
+        x=alt.X('Workout Type:N', title='Muscle Group'),
+        y=alt.Y('Volume (kg):Q', title='Volume (kg)')
+    )
+    st.markdown("**💪 Volume by Muscle Group**")
+    st.altair_chart(muscle_chart.properties(height=250), use_container_width=True)
+
+    # ---------- Exercise Distribution ---------- #
+    dist = df_view['Exercise'].value_counts().reset_index().rename(columns={'index':'Exercise','Exercise':'Count'})
+    dist_chart = alt.Chart(dist).mark_arc().encode(
+        theta=alt.Theta('Count:Q'),
+        color=alt.Color('Exercise:N', legend=alt.Legend(title="Exercise"))
+    )
+    st.markdown("**🔢 Exercise Distribution**")
+    st.altair_chart(dist_chart.properties(height=300), use_container_width=True)
