@@ -20,11 +20,9 @@ st.markdown(
 )
 
 # ---------- Load data ---------- #
-CSV_URL = "https://raw.githubusercontent.com/datojulien/workout-dashboard/main/WorkoutExport.csv"
-df = pd.read_csv(CSV_URL)
+df = pd.read_csv("https://raw.githubusercontent.com/datojulien/workout-dashboard/main/WorkoutExport.csv")
 df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
 df["Day"] = df["Date"].dt.date
-
 # Exclude cardio-only rows
 df = df[~df["Exercise"].str.contains("Stair Stepper|Cycling", case=False, na=False)]
 
@@ -45,14 +43,8 @@ df_weighted["1RM Estimate"] = df_weighted.apply(
 )
 
 # ---------- PR Detection ---------- #
-prs_weight = (
-    df[df["Actual Weight (kg)"] > 0]
-      .groupby("Exercise")["Actual Weight (kg)"].max().to_dict()
-)
-prs_reps = (
-    df[df["Actual Weight (kg)"] == 0]
-      .groupby("Exercise")["Reps"].max().to_dict()
-)
+prs_weight = df[df["Actual Weight (kg)"] > 0].groupby("Exercise")["Actual Weight (kg)"].max().to_dict()
+prs_reps = df[df["Actual Weight (kg)"] == 0].groupby("Exercise")["Reps"].max().to_dict()
 
 def assign_pr(row):
     if row["Actual Weight (kg)"] == 0:
@@ -76,6 +68,7 @@ def classify_exercise(name) -> str:
 
 df["Workout Type"] = df["Exercise"].apply(classify_exercise)
 
+# ---------- Weekly summary ---------- #
 df["Week"] = df["Date"].dt.isocalendar().week
 weekly_summary = (
     df.groupby("Week", as_index=False)
@@ -105,7 +98,10 @@ if view_mode == "By Date":
     df_view = df[df["Day"] == selected_day]
     if hide_light:
         df_view = df_view[df_view["Actual Weight (kg)"] >= 40]
-    summary_title = f"📊 Summary for {selected_day} | {df_view['Workout Type'].value_counts().idxmax() if not df_view.empty else 'N/A'} Day"
+    summary_title = (
+        f"📊 Summary for {selected_day} | "
+        f"{df_view['Workout Type'].value_counts().idxmax() if not df_view.empty else 'N/A'} Day"
+    )
 else:
     exercises = sorted(df["Exercise"].dropna().unique())
     selected_ex = st.sidebar.selectbox("💪 Select an exercise", exercises)
@@ -120,7 +116,6 @@ c1.metric("Total Volume", f"{df_view['Volume (kg)'].sum():,.0f} kg")
 c2.metric("Total Sets", len(df_view))
 c3.metric("Heaviest Lift", f"{df_view['Actual Weight (kg)'].max():.1f} kg" if not df_view.empty else "—")
 
-# ---------- Weekly summary ---------- #
 with st.expander("📆 Weekly Summary (last 4 weeks)", expanded=False):
     st.dataframe(weekly_summary.head(4), use_container_width=True)
     st.download_button(
@@ -140,8 +135,7 @@ else:
         y=alt.Y('1RM Estimate:Q')
     )
     line_irm = base_irm.mark_line(point=True)
-    reg_line = base_irm.transform_regression('Day', '1RM Estimate', method='linear')
-                  .mark_line(strokeDash=[4,2])
+    reg_line = base_irm.transform_regression('Day', '1RM Estimate', method='linear').mark_line(strokeDash=[4,2])
     st.markdown("**📈 1RM Estimate Trend & Projection**")
     st.altair_chart((line_irm + reg_line).properties(height=250), use_container_width=True)
 
@@ -156,47 +150,4 @@ else:
         y=alt.Y('PR:Q', title='PR Count')
     )
     st.markdown("**🏆 Weekly PR Counts**")
-    st.altair_chart(pr_chart.properties(height=200), use_container_width=True)
-
-    # ---------- Volume by Muscle Group ---------- #
-    vol_mg = df_view.groupby('Workout Type')['Volume (kg)'].sum().reset_index()
-    mg_chart = alt.Chart(vol_mg).mark_bar().encode(
-        x=alt.X('Workout Type:N', title='Muscle Group'),
-        y=alt.Y('Volume (kg):Q')
-    )
-    st.markdown("**💪 Volume by Muscle Group (Current Selection)**")
-    st.altair_chart(mg_chart.properties(height=200), use_container_width=True)
-
-    # ---------- Exercise Distribution ---------- #
-    ex_dist = df_view['Exercise'].value_counts().reset_index()
-    ex_dist.columns = ['Exercise','Sets']
-    dist_chart = alt.Chart(ex_dist).mark_bar().encode(
-        x=alt.X('Sets:Q'),
-        y=alt.Y('Exercise:N', sort='-x')
-    )
-    st.markdown("**📊 Top Exercises by Sets**")
-    st.altair_chart(dist_chart.properties(height=300), use_container_width=True)
-
-    # ---------- Rolling Average on Volume Trend ---------- #
-    if view_mode == 'By Date':
-        # earlier volume-trend code unchanged
-        pass  # preserve existing per-exercise trend
-    else:
-        recent = df[df['Exercise']==selected_ex].copy()
-        recent = recent.groupby('Day')['Volume (kg)'].sum().sort_index()
-        rolling = recent.rolling(window=3).mean().reset_index()
-        raw = recent.reset_index()
-        chart_raw = alt.Chart(raw).mark_line(point=True).encode(x='Day:T', y='Volume (kg):Q')
-        chart_roll = alt.Chart(rolling).mark_line(strokeDash=[2,2]).encode(x='Day:T', y='Volume (kg):Q')
-        st.markdown("**🔄 3-Day Rolling Avg Volume**")
-        st.altair_chart((chart_raw + chart_roll).properties(height=200), use_container_width=True)
-
-    # ---------- Detailed Sets & CSV Download ---------- #
-    df_export = df_view.copy()
-    df_export['Set #'] = df_export.groupby(['Day','Exercise']).cumcount() + 1
-    st.download_button(
-        "📥 Download Detailed CSV",
-        df_export.to_csv(index=False).encode('utf-8'),
-        f"export_{selected_day if view_mode=='By Date' else selected_ex}.csv",
-        "text/csv"
-    )
+    st.altair_chart(pr_chart.properties
