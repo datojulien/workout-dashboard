@@ -14,7 +14,9 @@ st.markdown("""<style>
 st.title("🏋️ Julien's Workout Dashboard")
 st.markdown(
     "Tracking Julien's sets, volume, and personal bests 🏅. "
-    "View by day or by exercise. Sessions charts and detailed tables are visible by default."
+    "View by day or by exercise. Volume trends include the selected day. "
+    "Tracking my progress so Coach Azim has fewer reasons to be disappointed."
+)
 )
 
 # ---------- Load & preprocess data ---------- #
