@@ -162,4 +162,4 @@ with c_1:
 with c_2:
     # Weekly Consistency
     st.metric("Unique Exercises (This Week)", df[df['Date'] >= (pd.Timestamp.today() - timedelta(days=7))]['Exercise'].nunique())
-    st.write("Coach Azim's Tip: Focus on increasing the **Intensity %** of your top sets over time rather than just adding more reps.")
+    st.write("Coach's Tip: Focus on increasing the **Intensity %** of your top sets over time rather than just adding more reps.")
