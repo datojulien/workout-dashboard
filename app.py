@@ -30,10 +30,10 @@ supabase = init_connection()
 # ---------- Load & preprocess data ---------- #
 @st.cache_data(ttl=600)
 def load_data():
-    # Fetch data: Limit increased and ordered by date to ensure recent data shows up
+    # FIX: Use 'desc' parameter instead of 'ascending'
     response = supabase.table("workouts") \
         .select("*") \
-        .order("date", ascending=False) \
+        .order("date", desc=True) \
         .limit(10000) \
         .execute()
     
@@ -43,7 +43,6 @@ def load_data():
         return data
 
     # 1. Standardize column names and types
-    # Ensure date is timezone-naive for consistent filtering
     data["Date"] = pd.to_datetime(data["date"], errors="coerce", utc=True).dt.tz_localize(None)
     data["Day"] = data["Date"].dt.date
     data["Exercise"] = data["exercise"]
@@ -53,7 +52,6 @@ def load_data():
     
     # 2. Filtering
     data = data.dropna(subset=["Day"])
-    # Filter out cardio if needed
     data = data[~data["Exercise"].str.contains("Stair Stepper|Cycling", case=False, na=False)]
 
     # 3. Derived metrics
@@ -169,7 +167,6 @@ cutoff = pd.Timestamp.today() - timedelta(weeks=weeks)
 irm_data = df_weighted[df_weighted["Date"] >= cutoff]
 
 if not irm_data.empty:
-    # Get max 1RM per day for the chart
     irm_trend = irm_data.groupby("Date", as_index=False)["1RM Estimate"].max()
     base_irm = alt.Chart(irm_trend).encode(
         x=alt.X("Date:T", axis=alt.Axis(format="%b %d", labelAngle=-45)),
@@ -182,23 +179,13 @@ if not irm_data.empty:
         use_container_width=True
     )
 
-# ---------- ACWR (Acute:Chronic Workload Ratio) ---------- #
-if len(weekly_summary) >= 2:
-    current_vol = weekly_summary["Total Volume"].iloc[0]
-    avg_vol = weekly_summary["Total Volume"].iloc[1:5].mean()
-    if avg_vol > 0:
-        acwr = current_vol / avg_vol
-        st.markdown(f"**⚖️ ACWR (This week vs last 4 weeks avg):** `{acwr:.2f}`")
-
 # ---------- Detailed Table ---------- #
 with st.expander("📋 Detailed sets/tables", expanded=True):
-    # Prepare clean display table
     display_df = df_sel.copy()
     display_df["Set #"] = range(1, len(display_df) + 1)
     
     cols_to_show = ["Set #", "Exercise", "Reps", "Weight_Single_KG", "Multiplier", "Actual Weight (kg)", "Volume (kg)", "PR"]
     if view_mode == "By Date":
-        # Remove Exercise column if viewing by date to save space
         cols_to_show.remove("Exercise")
         for ex in df_sel["Exercise"].unique():
             st.subheader(ex)
